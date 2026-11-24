@@ -31,6 +31,9 @@
     edit: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"><path d="M4 20h4L19 9l-4-4L4 16z"/></svg>',
     abc: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 17l3.5-10L10 17M4.2 13.5h4.6M13 7v10h3.5a2.5 2.5 0 0 0 0-5H13h3a2.5 2.5 0 0 0 0-5z"/></svg>',
     slow: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="13" r="8"/><path d="M12 9v4l2.5 2M9 2h6"/></svg>',
+    repeat: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 2l3 3-3 3"/><path d="M4 11V9a4 4 0 0 1 4-4h12M7 22l-3-3 3-3"/><path d="M20 13v2a4 4 0 0 1-4 4H4"/></svg>',
+    info: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.01"/></svg>',
+    x: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M6 6l12 12M18 6L6 18"/></svg>',
     eye: '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M2 12s3.5-7 10-7 10 7 10 7-3.5 7-10 7S2 12 2 12z"/><circle cx="12" cy="12" r="3"/></svg>'
   };
   $('#back').innerHTML = I.back; $('#homeBtn').innerHTML = I.home; $('#setBtn').innerHTML = I.gear;
@@ -45,7 +48,7 @@
   var myWords = store.get('mywords', []);
   var myPass = store.get('passages', []);
   var study = store.get('study', {});
-  var DEF = { rate: 0.85, acc: 'en-US', readAr: false, follow: true, theme: 'system', color: 'red', bg: 'paper', barStyle: 'calm', fs: 16, layout: 'list', hideTr: false, hideAr: false, hideDone: false, goal: 20, rdSpeed: 'medium', rdMode: 'cont', rdAr: false };
+  var DEF = { rate: 0.85, acc: 'en-US', readAr: false, follow: true, theme: 'system', color: 'red', bg: 'paper', barStyle: 'calm', fs: 16, layout: 'list', hideTr: false, hideAr: false, hideDone: false, goal: 20, rdSpeed: 'medium', rdMode: 'cont', rdAr: false, voice: '' };
   var cfg = store.get('cfg', {}); Object.keys(DEF).forEach(function (k) { if (cfg[k] === undefined) cfg[k] = DEF[k]; });
   var save = function () { store.set('fav', fav); store.set('learned', learned); store.set('cfg', cfg); store.set('mywords', myWords); store.set('passages', myPass); };
 
@@ -121,6 +124,7 @@
   // ---------------- speech engine ----------------
   var native = !!(window.Android && Android.speak);
   var hasRange = native ? !!(Android.supportsRange && Android.supportsRange()) : ('speechSynthesis' in window);
+  if (native && Android.setVoice) { try { Android.setVoice(cfg.voice || ''); } catch (e) { } }
   var Q = [], playing = false, seq = 0, curId = null, META = {}, onFinish = null, arOk = true, lastTouch = 0;
   ['touchstart', 'touchmove', 'wheel'].forEach(function (ev) { window.addEventListener(ev, function () { lastTouch = now(); }, { passive: true }); });
 
@@ -131,6 +135,7 @@
     if (!('speechSynthesis' in window)) { toast('النطق غير متوفر هنا'); return; }
     speechSynthesis.cancel();
     var u = new SpeechSynthesisUtterance(plain(it.text)); u.lang = lang === 'ar' ? 'ar-SA' : lang; u.rate = rate;
+    if (lang !== 'ar' && cfg.voice) { var vv = speechSynthesis.getVoices().filter(function (x) { return x.name === cfg.voice; })[0]; if (vv) u.voice = vv; }
     u.onstart = function () { window.ttsStart(id); };
     u.onend = function () { window.ttsDone(id); };
     u.onerror = function () { window.ttsDone(id); };
@@ -213,7 +218,7 @@
   function route() { return decodeURIComponent((location.hash || '#').slice(1)); }
   function go(h) { POS[h] = 0; freshNav = true; if (route() !== h) location.hash = h; else render(); }
   window.addEventListener('scroll', function () { if (curRoute != null) POS[curRoute] = window.scrollY; }, { passive: true });
-  window.addEventListener('hashchange', function () { stopAll(); closeSheet(); render(); });
+  window.addEventListener('hashchange', function () { stopAll(); closeSheet(); closeWbar(); render(); });
 
   function setBar(title, sub, opts) {
     opts = opts || {};
@@ -414,6 +419,32 @@
     app.innerHTML = h;
   }
 
+  // ---------- voices ----------
+  var LOCN = { en_US: 'أمريكي', en_GB: 'بريطاني', en_AU: 'أسترالي', en_IN: 'هندي', en_CA: 'كندي', en_IE: 'أيرلندي', en_NG: 'نيجيري', en_ZA: 'جنوب أفريقي' };
+  function listVoices() {
+    var out = [];
+    if (native && Android.voices) { try { out = JSON.parse(Android.voices()); } catch (e) { out = []; } }
+    else if ('speechSynthesis' in window) out = speechSynthesis.getVoices().filter(function (v) { return /^en/i.test(v.lang); }).map(function (v) { return { name: v.name, loc: v.lang.replace('-', '_'), q: v.localService ? 300 : 400, net: !v.localService }; });
+    var pref = cfg.acc.replace('-', '_');
+    out.sort(function (a, b) { return (b.loc === pref) - (a.loc === pref) || (a.net - b.net) || (b.q - a.q) || (a.name < b.name ? -1 : 1); });
+    return out;
+  }
+  function voiceSection() {
+    var vs = listVoices();
+    var ql = function (q) { return q >= 500 ? 'جودة عالية جداً' : q >= 400 ? 'جودة عالية' : q >= 300 ? 'جودة جيدة' : 'جودة عادية'; };
+    var h = '<div class="set"><label>صوت القارئ</label><p>لأوضح نطق: اختر صوتاً «جودة عالية جداً». الأصوات المكتوب عليها «إنترنت» أكثر طبيعية لكنها تحتاج اتصالاً. اضغط أي صوت لتسمعه.</p>' +
+      '<div class="tiles list"><button class="tile" data-act="voice" data-v="" aria-pressed="' + (!cfg.voice) + '"><span class="tx"><b>تلقائي</b><small>أفضل صوت مثبّت في هاتفك للهجة المختارة</small></span>' + (!cfg.voice ? '<span style="color:var(--accent)">' + I.check + '</span>' : '') + '</button>';
+    vs.slice(0, 24).forEach(function (v, i) {
+      var code = (v.name.match(/-x-([a-z]+)/) || [])[1] || v.name;
+      var sel = cfg.voice === v.name;
+      h += '<button class="tile" data-act="voice" data-v="' + esc(v.name) + '" aria-pressed="' + sel + '"><span class="tx"><b>' + esc(LOCN[v.loc] || v.loc) + ' · صوت ' + esc(code) + '</b><small>' + ql(v.q) + (v.net ? ' · إنترنت' : ' · بدون إنترنت') + '</small></span>' + (sel ? '<span style="color:var(--accent);width:22px">' + I.check + '</span>' : '') + '</button>';
+    });
+    h += '</div>';
+    if (!vs.length) h += '<p style="margin-top:8px">لم تظهر الأصوات بعد. <button class="pill" data-act="vrefresh">تحديث القائمة</button></p>';
+    h += '<p style="margin-top:8px">للحصول على أصوات أكثر وضوحاً: «فتح إعدادات الصوت» ← محرك Google ← تثبيت بيانات الصوت ← الإنجليزية، ثم نزّل الصوت عالي الجودة.</p></div>';
+    return h;
+  }
+
   // ---------- settings ----------
   function viewSettings() {
     setBar('الإعدادات', '');
@@ -429,6 +460,7 @@
       '<div class="set"><label>سرعة النطق: <span id="rv">' + Number(cfg.rate).toFixed(2) + '</span></label><input type="range" id="rate" min="0.4" max="1.4" step="0.05" value="' + cfg.rate + '"><div class="row"><span>اللهجة</span></div>' + seg('acc', [['en-US', 'أمريكية'], ['en-GB', 'بريطانية']]) +
       '<div style="margin-top:8px"><button class="pill" data-act="test">' + I.spk + ' تجربة الصوت</button></div>' +
       sw('readAr', 'في «استمع للكل» اقرأ المعنى بالعربي أيضاً') + sw('follow', 'تابع الصفحة تلقائياً أثناء القراءة') + '</div>' +
+      voiceSection() +
       '<div class="set"><label>هدف الدراسة اليومي</label>' + seg('goal', [[10, '10 د'], [20, '20 د'], [30, '30 د'], [45, '45 د'], [60, 'ساعة']]) + '</div>' +
       '<div class="set"><label>الصوت لا يعمل؟</label><p>يستخدم التطبيق محرك النطق في هاتفك (يعمل بدون إنترنت). إذا لم تسمع شيئاً ثبّت صوت الإنجليزية من إعدادات Google للنطق.</p><button class="pill" data-act="install">فتح إعدادات الصوت</button></div>' +
       '<div class="set"><label>البيانات</label><div class="sw" style="gap:8px"><button class="btn danger" data-act="reset" data-what="progress">مسح «أتقنتها» والمحفوظات</button><button class="btn danger" data-act="reset" data-what="time">مسح وقت الدراسة</button></div></div>' +
@@ -476,10 +508,10 @@
     var h = '<div class="rd-tools"><div class="rd-row"><button class="play" id="rdplay" data-act="rdplay" aria-label="تشغيل">' + I.play + '</button>' +
       '<div class="seg" style="flex:1">' + sp('slow') + sp('medium') + sp('normal') + sp('fast') + '</div></div>' +
       '<div class="rd-row"><div class="seg" style="flex:1"><button data-act="rdmode" data-v="cont" aria-pressed="' + (cfg.rdMode === 'cont') + '">قراءة متصلة</button><button data-act="rdmode" data-v="word" aria-pressed="' + (cfg.rdMode === 'word') + '">كلمة كلمة</button></div>' +
-      '<button class="pill" data-act="rdar" aria-pressed="' + !!cfg.rdAr + '">الترجمة</button>' + (p.mine ? '<button class="pill" data-go="pedit/' + p.id + '">' + I.edit + '</button>' : '') + '</div></div>';
+      '<button class="pill" data-act="rdrepeat">' + I.repeat + ' أعد الجملة</button><button class="pill" data-act="rdar" aria-pressed="' + !!cfg.rdAr + '">الترجمة</button>' + (p.mine ? '<button class="pill" data-go="pedit/' + p.id + '">' + I.edit + '</button>' : '') + '</div></div>';
     h += '<div class="passage" id="passage">' + html + '</div>';
     if (p.ar) h += '<div class="rd-ar" id="rdar"' + (cfg.rdAr ? '' : ' hidden') + '>' + esc(p.ar) + '</div>';
-    h += '<p class="foot">اضغط على أي كلمة لسماعها وتهجئتها ومعرفة قواعد نطقها، أو لتبدأ القراءة منها.</p>';
+    h += '<p class="foot">اضغط على أي كلمة لسماعها مرة أخرى أو لإعادة جملتها. اضغط مطولاً على الكلمة للتهجئة والمعنى وقواعد النطق.</p>';
     app.innerHTML = h;
   }
   function setRdBtn() { var b = $('#rdplay'); if (b) b.innerHTML = RD.on ? I.pause : I.play; }
@@ -491,17 +523,22 @@
     follow(el);
   }
   function wordAt(off) { var W_ = RD.words, lo = 0, hi = W_.length - 1, ans = 0; while (lo <= hi) { var mid = (lo + hi) >> 1; if (W_[mid].s <= off) { ans = mid; lo = mid + 1; } else hi = mid - 1; } return ans; }
-  function rdStart(from) {
+  function sentOf(i) { var w = RD.words[i]; for (var k = 0; k < RD.sents.length; k++) if (w.s >= RD.sents[k].s && w.s < RD.sents[k].e) return RD.sents[k]; return RD.sents[RD.sents.length - 1]; }
+  function rdStart(from, only) {
     stopAll(); if (!RD.words.length) return;
     from = Math.max(0, Math.min(from || 0, RD.words.length - 1));
     $$('.passage .w.read').forEach(function (e) { e.classList.remove('read'); });
-    var sp = SPEEDS[cfg.rdSpeed] || SPEEDS.medium, q = [];
+    var sp = SPEEDS[cfg.rdSpeed] || SPEEDS.medium, q = [], one = only ? sentOf(from) : null;
+    if (one) { from = wordAt(one.s); if (RD.words[from].s < one.s) from++; }
+    $$('.passage .w.sent').forEach(function (e) { e.classList.remove('sent'); });
+    if (one) RD.words.forEach(function (w, k) { if (w.s >= one.s && w.e <= one.e) { var el = document.getElementById('w' + k); if (el) el.classList.add('sent'); } });
     if (cfg.rdMode === 'word') {
-      for (var i = from; i < RD.words.length; i++) (function (i) { q.push({ text: RD.words[i].w, rate: sp.rate, gap: sp.gap, onStart: function () { rdMark(i); } }); })(i);
+      for (var i = from; i < RD.words.length && (!one || RD.words[i].e <= one.e); i++) (function (i) { q.push({ text: RD.words[i].w, rate: sp.rate, gap: sp.gap, onStart: function () { rdMark(i); } }); })(i);
     } else {
       var start = RD.words[from].s;
       RD.sents.forEach(function (s) {
         if (s.e <= start) return;
+        if (one && s !== one) return;
         var cs = Math.max(s.s, start), chunk = RD.p.text.slice(cs, s.e);
         if (!chunk.trim()) return;
         q.push({
@@ -525,9 +562,30 @@
       });
     }
     RD.on = true; setRdBtn();
-    runQueue(q, function () { RD.on = false; setRdBtn(); var o = $('.passage .w.on'); if (o) o.classList.remove('on'); toast('انتهت القراءة 👏'); });
+    runQueue(q, function () {
+      RD.on = false; setRdBtn(); var o = $('.passage .w.on'); if (o) o.classList.remove('on');
+      if (one) { $$('.passage .w.sent').forEach(function (e) { e.classList.remove('sent'); }); RD.idx = from; }
+      else toast('انتهت القراءة 👏');
+    });
     RD.on = true; setRdBtn();
   }
+
+  // tap a word: stop, say it, and offer replay / sentence / continue
+  var WBi = 0;
+  function wordTap(i) {
+    stopAll(); RD.idx = i; WBi = i;
+    $$('.passage .w.pick').forEach(function (e) { e.classList.remove('pick'); });
+    var el = document.getElementById('w' + i); if (el) el.classList.add('pick');
+    var w = RD.words[i].w.replace(/^[^A-Za-z0-9]+|[^A-Za-z0-9]+$/g, ''), d = lookup(w);
+    var host = $('#wbar'); if (!host) { host = document.createElement('div'); host.id = 'wbar'; document.body.appendChild(host); }
+    host.className = 'wbar';
+    host.innerHTML = '<div class="wt"><b>' + esc(w) + '</b><span>' + (d ? esc(d.ar) : '') + '</span><button class="ib" data-act="wclose" aria-label="إغلاق">' + I.x + '</button></div>' +
+      '<div class="wb"><button data-act="wagain">' + I.spk + 'الكلمة</button><button data-act="wslow">' + I.slow + 'ببطء</button>' +
+      '<button data-act="wsent">' + I.repeat + 'الجملة</button><button data-act="wfrom">' + I.play + 'أكمل من هنا</button><button data-act="whelp">' + I.info + 'تهجئة ومعنى</button></div>';
+    sayWord(w);
+  }
+  function sayWord(w, slow) { Q = []; playing = false; onFinish = null; RD.on = false; setRdBtn(); speak({ text: w, rate: slow ? 0.45 : Math.min(cfg.rate, 0.8) }); }
+  function closeWbar() { var b = $('#wbar'); if (b) b.remove(); $$('.passage .w.pick').forEach(function (e) { e.classList.remove('pick'); }); }
 
   // word sheet
   var HINTS = [
@@ -608,7 +666,7 @@
 
   document.addEventListener('click', function (e) {
     var w = e.target.closest('.passage .w');
-    if (w) { stopAll(); openWordSheet(w.textContent, +w.getAttribute('data-w')); return; }
+    if (w) { if (longPressed) { longPressed = false; return; } wordTap(+w.getAttribute('data-w')); return; }
     var g = e.target.closest('[data-go]');
     if (g) { go(g.getAttribute('data-go')); return; }
     var st = e.target.closest('[data-set]');
@@ -655,10 +713,20 @@
       case 'sttab': ST.tab = b.getAttribute('data-v'); ST.off = 0; viewStats(); break;
       case 'stoff': ST.off = Math.max(0, ST.off + (+b.getAttribute('data-v'))); viewStats(); break;
       // reader
-      case 'rdplay': if (RD.on) { var at = RD.idx; stopAll(); RD.idx = at; } else rdStart(RD.idx >= RD.words.length - 1 ? 0 : RD.idx); break;
+      case 'rdplay': closeWbar(); if (RD.on) { var at = RD.idx; stopAll(); RD.idx = at; } else rdStart(RD.idx >= RD.words.length - 1 ? 0 : RD.idx); break;
       case 'rdspeed': cfg.rdSpeed = b.getAttribute('data-v'); save(); $$('[data-act=rdspeed]').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); if (RD.on) rdStart(RD.idx); break;
       case 'rdmode': cfg.rdMode = b.getAttribute('data-v'); save(); $$('[data-act=rdmode]').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); if (RD.on) rdStart(RD.idx); break;
       case 'rdar': cfg.rdAr = !cfg.rdAr; save(); b.setAttribute('aria-pressed', cfg.rdAr); var ra = $('#rdar'); if (ra) ra.hidden = !cfg.rdAr; else toast('لا توجد ترجمة لهذه القطعة'); break;
+      // word bar
+      case 'wclose': stopAll(); closeWbar(); break;
+      case 'wagain': sayWord(RD.words[WBi].w.replace(/[^A-Za-z0-9'’-]/g, '')); break;
+      case 'wslow': sayWord(RD.words[WBi].w.replace(/[^A-Za-z0-9'’-]/g, ''), true); break;
+      case 'wsent': rdStart(WBi, true); break;
+      case 'wfrom': var fr = WBi; closeWbar(); rdStart(fr); break;
+      case 'whelp': var hi = WBi; stopAll(); closeWbar(); openWordSheet(RD.words[hi].w, hi); break;
+      case 'rdrepeat': rdStart(RD.idx || 0, true); break;
+      case 'voice': cfg.voice = b.getAttribute('data-v'); save(); if (native && Android.setVoice) Android.setVoice(cfg.voice); $$('[data-act=voice]').forEach(function (x) { x.setAttribute('aria-pressed', x === b); }); sayOne('Hello! This is how I sound. Learning English is fun.', cfg.acc); break;
+      case 'vrefresh': rerenderKeep(); break;
       // word sheet
       case 'shclose': closeSheet(); break;
       case 'shsay': sayOne(SH.w, cfg.acc); break;
@@ -682,6 +750,16 @@
         myPass = myPass.filter(function (x) { return x.id !== b.getAttribute('data-id'); }); save(); location.replace('#reader'); break;
     }
   });
+  // long-press a word for the full help sheet
+  var lpTimer = null, longPressed = false;
+  document.addEventListener('touchstart', function (e) {
+    var w = e.target.closest && e.target.closest('.passage .w'); if (!w) return;
+    longPressed = false; clearTimeout(lpTimer);
+    lpTimer = setTimeout(function () { longPressed = true; stopAll(); closeWbar(); openWordSheet(w.textContent, +w.getAttribute('data-w')); }, 550);
+  }, { passive: true });
+  ['touchend', 'touchmove', 'touchcancel'].forEach(function (ev) { document.addEventListener(ev, function () { clearTimeout(lpTimer); }, { passive: true }); });
+  document.addEventListener('contextmenu', function (e) { if (e.target.closest && e.target.closest('.passage .w')) e.preventDefault(); });
+
   // tap a blurred line to reveal it
   document.addEventListener('click', function (e) {
     var t = e.target.closest('.hide-tr .tr, .hide-ar .ar, .hide-tr .ex .a b, .hide-ar .ex .a span');

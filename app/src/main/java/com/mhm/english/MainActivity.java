@@ -13,13 +13,20 @@ import android.webkit.WebSettings;
 import android.webkit.WebView;
 import android.webkit.WebViewClient;
 
+import android.speech.tts.Voice;
+import org.json.JSONArray;
+import org.json.JSONObject;
+
 import java.util.Locale;
+import java.util.Set;
 
 public class MainActivity extends Activity {
 
     private WebView web;
     private TextToSpeech tts;
     private volatile boolean ready = false;
+    private String voiceName = "";
+    private static final String GOOGLE_TTS = "com.google.android.tts";
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -38,7 +45,9 @@ public class MainActivity extends Activity {
         web.loadUrl("file:///android_asset/www/index.html");
         setContentView(web);
 
-        tts = new TextToSpeech(this, status -> {
+        boolean hasGoogle = false;
+        try { getPackageManager().getPackageInfo(GOOGLE_TTS, 0); hasGoogle = true; } catch (Exception ignored) { }
+        TextToSpeech.OnInitListener init = status -> {
             ready = status == TextToSpeech.SUCCESS;
             if (ready) {
                 tts.setLanguage(Locale.US);
@@ -54,7 +63,9 @@ public class MainActivity extends Activity {
                 });
             }
             call("ttsReady", ready ? "1" : "0");
-        });
+        };
+        // Prefer Google's engine: its voices are the clearest on most phones.
+        tts = hasGoogle ? new TextToSpeech(this, init, GOOGLE_TTS) : new TextToSpeech(this, init);
     }
 
     private static String esc(String s) {
@@ -73,6 +84,27 @@ public class MainActivity extends Activity {
         return Locale.US;
     }
 
+    // The chosen voice, or the best installed (offline) voice for this accent.
+    private Voice pickVoice(Locale want) {
+        try {
+            Set<Voice> vs = tts.getVoices();
+            if (vs == null) return null;
+            Voice best = null;
+            for (Voice v : vs) {
+                if (!voiceName.isEmpty() && v.getName().equals(voiceName)) return v;
+            }
+            for (Voice v : vs) {
+                Locale l = v.getLocale();
+                if (l == null || !want.getLanguage().equals(l.getLanguage()) || !want.getCountry().equals(l.getCountry())) continue;
+                Set<String> f = v.getFeatures();
+                if (f != null && f.contains("notInstalled")) continue;
+                if (v.isNetworkConnectionRequired()) continue;
+                if (best == null || v.getQuality() > best.getQuality()) best = v;
+            }
+            return best;
+        } catch (Exception e) { return null; }
+    }
+
     class Bridge {
         @JavascriptInterface
         public boolean isReady() { return ready; }
@@ -89,11 +121,43 @@ public class MainActivity extends Activity {
                 call("ttsDone", id);
                 return;
             }
+            if (!"ar".equals(lang)) {
+                Voice v = pickVoice(localeOf(lang));
+                if (v != null) { try { tts.setVoice(v); } catch (Exception ignored) { } }
+            }
+            tts.setPitch(1.0f);
             tts.setSpeechRate(rate);
             Bundle p = new Bundle();
             p.putString(TextToSpeech.Engine.KEY_PARAM_UTTERANCE_ID, id);
             tts.speak(text, TextToSpeech.QUEUE_FLUSH, p, id);
         }
+
+        @JavascriptInterface
+        public String voices() {
+            JSONArray a = new JSONArray();
+            try {
+                Set<Voice> vs = tts == null ? null : tts.getVoices();
+                if (vs != null) for (Voice v : vs) {
+                    Locale l = v.getLocale();
+                    if (l == null || !"en".equals(l.getLanguage())) continue;
+                    Set<String> f = v.getFeatures();
+                    if (f != null && f.contains("notInstalled")) continue;
+                    JSONObject o = new JSONObject();
+                    o.put("name", v.getName());
+                    o.put("loc", l.toString());
+                    o.put("q", v.getQuality());
+                    o.put("net", v.isNetworkConnectionRequired());
+                    a.put(o);
+                }
+            } catch (Exception ignored) { }
+            return a.toString();
+        }
+
+        @JavascriptInterface
+        public void setVoice(String name) { voiceName = name == null ? "" : name; }
+
+        @JavascriptInterface
+        public String engine() { try { return tts.getDefaultEngine(); } catch (Exception e) { return ""; } }
 
         @JavascriptInterface
         public void stop() { if (tts != null) tts.stop(); }
