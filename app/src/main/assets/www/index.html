@@ -1,0 +1,117 @@
+<!DOCTYPE html>
+<html lang="ar" dir="rtl">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1">
+<title>تعلّم الإنجليزية</title>
+<style>
+/* VOICE: friendly pocket phrasebook for an Arabic speaker learning to read English
+   IDEA: the red-covered phrasebook: sections are chapters, folders are tabs, every line can be heard
+   PICTURE: the cards themselves — big English line, Arabic reading, meaning, speaker button
+   COLOUR and TYPE: phrasebook red header, white pages, cobalt for sound, gold for favourites; system Arabic font
+   LAYOUT: sticky red app bar, folder lists, one-column cards (two on tablets) */
+:root{--bg:#ffffff;--ink:#1c1a22;--muted:#66626d;--red:#c8352a;--redd:#a92b21;--card:#ffffff;--line:#e7e3dd;--soft:#f5f3ef;--blue:#1f4fd1;--gold:#e0a100;--ok:#1f7a4d;--hl:#eef3ff}
+:root[data-theme=dark]{--bg:#131316;--ink:#f1eee9;--muted:#a6a2ac;--red:#b8322a;--redd:#8f241c;--card:#1c1b20;--line:#2e2c33;--soft:#232228;--blue:#8aa9ff;--gold:#ffc93c;--ok:#5fd39a;--hl:#1e2540}
+*{box-sizing:border-box;min-width:0;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 "Noto Sans Arabic","Noto Naskh Arabic",system-ui,sans-serif;overflow-x:hidden}
+button{font:inherit;color:inherit;cursor:pointer}
+.bar{position:sticky;top:0;z-index:10;background:var(--red);color:#fff;display:flex;align-items:center;gap:8px;padding:10px 12px;min-height:58px;box-shadow:0 2px 8px rgba(0,0,0,.15)}
+.bar h1{font-size:19px;margin:0;flex:1;line-height:1.25;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.bar .sub{display:block;font-size:12px;font-weight:400;opacity:.85}
+.ibtn{background:rgba(255,255,255,.14);border:0;border-radius:12px;width:44px;height:44px;display:grid;place-items:center;flex:none;color:#fff}
+.ibtn svg{width:22px;height:22px}
+.wrap{max-width:900px;margin:0 auto;padding:14px 12px 90px}
+.hero{background:var(--red);color:#fff;padding:6px 16px 22px;margin:-14px -12px 16px}
+.hero p{margin:0 0 12px;opacity:.95;font-size:15px}
+.prog{height:8px;background:rgba(255,255,255,.25);border-radius:9px;overflow:hidden}
+.prog i{display:block;height:100%;background:#ffc93c;border-radius:9px}
+.search{display:flex;align-items:center;gap:8px;background:#fff;color:#1c1a22;border-radius:14px;padding:4px 12px;margin-top:14px}
+.search input{flex:1;border:0;outline:0;font:inherit;font-size:16px;padding:9px 0;background:transparent;color:inherit}
+.legend{display:flex;flex-wrap:wrap;gap:6px;margin-top:12px}
+.legend span{background:rgba(255,255,255,.16);border-radius:9px;padding:3px 9px;font-size:13px}
+.quick{display:grid;grid-template-columns:repeat(3,minmax(0,1fr));gap:8px;margin-bottom:16px}
+.q{background:var(--soft);border:1px solid var(--line);border-radius:14px;padding:10px 6px;text-align:center;font-size:14px}
+.q b{display:block;font-size:20px;line-height:1.2}
+.q.fav b{color:var(--gold)}.q.lrn b{color:var(--ok)}
+h2.sec{font-size:15px;color:var(--muted);margin:18px 4px 8px;font-weight:600}
+.secs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,260px),1fr));gap:10px}
+.sec-card{display:flex;align-items:center;gap:12px;text-align:start;background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px;width:100%}
+.badge{flex:none;width:54px;height:54px;border-radius:14px;display:grid;place-items:center;color:#fff;font:800 17px/1 system-ui,sans-serif;direction:ltr}
+.sec-card .tx{flex:1}
+.sec-card b{display:block;font-size:17px;line-height:1.3}
+.sec-card small{display:block;color:var(--muted);font-size:13px;line-height:1.4}
+.mini{height:5px;background:var(--soft);border-radius:5px;margin-top:6px;overflow:hidden}.mini i{display:block;height:100%;background:var(--ok)}
+.chev{color:var(--muted);font-size:20px}
+.tools{display:flex;flex-wrap:wrap;gap:8px;margin-bottom:12px}
+.pill{display:inline-flex;align-items:center;gap:6px;background:var(--soft);border:1px solid var(--line);border-radius:999px;padding:8px 14px;min-height:42px;font-size:14px}
+.pill.main{background:var(--blue);border-color:var(--blue);color:#fff;font-weight:700}
+.pill[aria-pressed=true]{background:var(--ink);color:var(--bg);border-color:var(--ink)}
+.pill svg{width:18px;height:18px}
+.list{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,380px),1fr));gap:10px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:12px 14px;transition:background .2s,border-color .2s}
+.card.on{border-color:var(--blue);background:var(--hl)}
+.top{display:flex;align-items:flex-start;gap:10px}
+.top .txt{flex:1}
+.en{font:700 20px/1.35 system-ui,"Roboto",sans-serif;direction:ltr;text-align:left;unicode-bidi:isolate}
+.tr{color:var(--blue);font-size:17px;font-weight:700;margin-top:2px}
+.ar{color:var(--muted);font-size:16px}
+.note{font-size:14.5px;background:var(--soft);border-radius:10px;padding:8px 10px;margin-top:8px;line-height:1.7}
+.spk{flex:none;width:46px;height:46px;border-radius:50%;border:0;background:var(--blue);color:#fff;display:grid;place-items:center}
+.spk svg{width:22px;height:22px}
+.spk.sm{width:38px;height:38px}.spk.sm svg{width:18px;height:18px}
+.acts{display:flex;gap:6px;margin-top:10px;flex-wrap:wrap}
+.ab{display:inline-flex;align-items:center;gap:5px;border:1px solid var(--line);background:var(--soft);border-radius:10px;padding:6px 11px;min-height:38px;font-size:13.5px}
+.ab svg{width:17px;height:17px}
+.ab.fv[aria-pressed=true]{color:var(--gold);border-color:var(--gold)}
+.ab.ln[aria-pressed=true]{color:var(--ok);border-color:var(--ok)}
+.card.done .en::after{content:"  ✓";color:var(--ok);font-size:16px}
+.rhead{display:flex;align-items:center;gap:10px}
+.rt{font:800 26px/1.2 system-ui,sans-serif;direction:ltr;background:var(--red);color:#fff;border-radius:12px;padding:4px 12px}
+.rs{font-size:22px;font-weight:800;color:var(--blue);flex:1}
+.ex{list-style:none;margin:10px 0 0;padding:0;display:grid;gap:6px}
+.ex li{display:flex;align-items:center;gap:10px;border-top:1px dashed var(--line);padding-top:6px}
+.ex li.on{background:var(--hl);border-radius:8px}
+.ex .t{flex:1}
+.ex .e{font:700 17px/1.3 system-ui,sans-serif;direction:ltr;text-align:left}
+.ex .e mark{background:none;color:var(--red);text-decoration:underline}
+.ex .a{font-size:14px;color:var(--muted)}.ex .a b{color:var(--blue)}
+.hide-tr .tr,.hide-tr .ex .a b{filter:blur(7px)}
+.hide-ar .ar,.hide-ar .ex .a span{filter:blur(7px)}
+.folder{display:flex;align-items:center;gap:12px;width:100%;text-align:start;background:var(--card);border:1px solid var(--line);border-radius:14px;padding:13px 14px;margin-bottom:8px}
+.folder .ic{width:40px;height:40px;border-radius:12px;display:grid;place-items:center;background:var(--soft);flex:none}
+.folder .ic svg{width:22px;height:22px;color:var(--red)}
+.folder .tx{flex:1}.folder b{font-size:16.5px;display:block}.folder small{color:var(--muted)}
+.empty{text-align:center;color:var(--muted);padding:50px 10px}
+.notice{background:#fff4d6;color:#5a4300;border-radius:12px;padding:10px 12px;margin-bottom:12px;font-size:14px;display:flex;gap:8px;align-items:center;flex-wrap:wrap}
+.notice button{background:#5a4300;color:#fff;border:0;border-radius:9px;padding:7px 12px}
+.set{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:14px;margin-bottom:10px}
+.set label{display:block;font-weight:700;margin-bottom:8px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+input[type=range]{width:100%;accent-color:var(--blue)}
+.danger{background:#fde8e6;color:#a92b21;border:0;border-radius:10px;padding:10px 14px}
+.toast{position:fixed;bottom:18px;left:50%;transform:translateX(-50%);background:#222;color:#fff;padding:9px 16px;border-radius:12px;font-size:14px;z-index:50;opacity:0;transition:opacity .25s;pointer-events:none}
+.toast.show{opacity:1}
+.foot{color:var(--muted);font-size:12.5px;text-align:center;margin-top:20px}
+@media (prefers-reduced-motion:reduce){*{transition:none!important}}
+</style>
+</head>
+<body>
+<div class="bar" id="bar">
+  <button class="ibtn" id="back" aria-label="رجوع" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"><path d="M9 6l6 6-6 6"/></svg></button>
+  <h1 id="ttl">تعلّم الإنجليزية</h1>
+  <button class="ibtn" id="home" aria-label="الرئيسية" hidden><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linejoin="round"><path d="M3 11l9-7 9 7v9a1 1 0 0 1-1 1h-5v-6H9v6H4a1 1 0 0 1-1-1z"/></svg></button>
+</div>
+<div class="wrap" id="app"></div>
+<div class="toast" id="toast"></div>
+
+<script src="data/core.js"></script>
+<script src="data/letters.js"></script>
+<script src="data/rules.js"></script>
+<script src="data/words.js"></script>
+<script src="data/grammar.js"></script>
+<script src="data/sentences1.js"></script>
+<script src="data/sentences2.js"></script>
+<script src="data/it.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
