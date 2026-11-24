@@ -7,6 +7,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.speech.tts.TextToSpeech;
 import android.speech.tts.UtteranceProgressListener;
+import android.view.View;
 import android.webkit.JavascriptInterface;
 import android.webkit.WebSettings;
 import android.webkit.WebView;
@@ -25,7 +26,7 @@ public class MainActivity extends Activity {
         super.onCreate(savedInstanceState);
 
         web = new WebView(this);
-        web.setBackgroundColor(Color.WHITE);
+        web.setBackgroundColor(Color.parseColor("#F6F5F2"));
         WebSettings s = web.getSettings();
         s.setJavaScriptEnabled(true);
         s.setDomStorageEnabled(true);
@@ -42,20 +43,28 @@ public class MainActivity extends Activity {
             if (ready) {
                 tts.setLanguage(Locale.US);
                 tts.setOnUtteranceProgressListener(new UtteranceProgressListener() {
-                    @Override public void onStart(String id) { js("ttsStart", id); }
-                    @Override public void onDone(String id) { js("ttsDone", id); }
-                    @Override public void onError(String id) { js("ttsDone", id); }
-                    @Override public void onStop(String id, boolean interrupted) { js("ttsStop", id); }
+                    @Override public void onStart(String id) { call("ttsStart", id); }
+                    @Override public void onDone(String id) { call("ttsDone", id); }
+                    @Override public void onError(String id) { call("ttsDone", id); }
+                    @Override public void onStop(String id, boolean interrupted) { call("ttsStop", id); }
+                    @Override public void onRangeStart(String id, int start, int end, int frame) {
+                        final String js = "window.ttsRange&&window.ttsRange('" + esc(id) + "'," + start + "," + end + ")";
+                        web.post(() -> web.evaluateJavascript(js, null));
+                    }
                 });
             }
-            js("ttsReady", ready ? "1" : "0");
+            call("ttsReady", ready ? "1" : "0");
         });
     }
 
-    private void js(final String fn, final String arg) {
+    private static String esc(String s) {
+        return s == null ? "" : s.replace("\\", "\\\\").replace("'", "\\'");
+    }
+
+    private void call(final String fn, final String arg) {
         if (web == null) return;
-        final String safe = arg == null ? "" : arg.replace("\\", "\\\\").replace("'", "\\'");
-        web.post(() -> web.evaluateJavascript("window." + fn + "&&window." + fn + "('" + safe + "')", null));
+        final String js = "window." + fn + "&&window." + fn + "('" + esc(arg) + "')";
+        web.post(() -> web.evaluateJavascript(js, null));
     }
 
     private Locale localeOf(String lang) {
@@ -69,12 +78,15 @@ public class MainActivity extends Activity {
         public boolean isReady() { return ready; }
 
         @JavascriptInterface
+        public boolean supportsRange() { return Build.VERSION.SDK_INT >= 26; }
+
+        @JavascriptInterface
         public void speak(String text, String lang, float rate, String id) {
-            if (!ready || tts == null) { js("ttsProblem", "notready"); js("ttsDone", id); return; }
+            if (!ready || tts == null) { call("ttsProblem", "notready"); call("ttsDone", id); return; }
             int r = tts.setLanguage(localeOf(lang));
             if (r == TextToSpeech.LANG_MISSING_DATA || r == TextToSpeech.LANG_NOT_SUPPORTED) {
-                js("ttsProblem", "ar".equals(lang) ? "noarabic" : "noenglish");
-                js("ttsDone", id);
+                call("ttsProblem", "ar".equals(lang) ? "noarabic" : "noenglish");
+                call("ttsDone", id);
                 return;
             }
             tts.setSpeechRate(rate);
@@ -90,19 +102,27 @@ public class MainActivity extends Activity {
         public void installVoices() {
             runOnUiThread(() -> {
                 try {
-                    Intent i = new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA);
-                    startActivity(i);
+                    startActivity(new Intent(TextToSpeech.Engine.ACTION_INSTALL_TTS_DATA));
                 } catch (Exception e) {
                     try { startActivity(new Intent("com.android.settings.TTS_SETTINGS")); } catch (Exception ignored) { }
                 }
             });
         }
 
+        // bar: status bar colour, bg: page background, lightIcons: true when the bar is dark
         @JavascriptInterface
-        public void setBar(String color) {
+        public void setColors(String bar, String bg, boolean lightIcons) {
             runOnUiThread(() -> {
                 try {
-                    if (Build.VERSION.SDK_INT >= 21) getWindow().setStatusBarColor(Color.parseColor(color));
+                    getWindow().setStatusBarColor(Color.parseColor(bar));
+                    web.setBackgroundColor(Color.parseColor(bg));
+                    if (Build.VERSION.SDK_INT >= 23) {
+                        View d = getWindow().getDecorView();
+                        int f = d.getSystemUiVisibility();
+                        if (lightIcons) f &= ~View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                        else f |= View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR;
+                        d.setSystemUiVisibility(f);
+                    }
                 } catch (Exception ignored) { }
             });
         }
@@ -115,9 +135,16 @@ public class MainActivity extends Activity {
     }
 
     @Override
+    protected void onResume() {
+        super.onResume();
+        call("appResume", "");
+    }
+
+    @Override
     protected void onPause() {
         super.onPause();
         if (tts != null) tts.stop();
+        call("appPause", "");
     }
 
     @Override
