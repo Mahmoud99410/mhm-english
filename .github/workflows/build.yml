@@ -31,7 +31,7 @@ jobs:
       - name: Build release APK
         run: |
           set -o pipefail
-          gradle --no-daemon assembleRelease 2>&1 | tee build.log || { grep -E "error|Error|What went wrong|wrong:|FAILED|Exception|\.java:" build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
+          gradle --no-daemon assembleRelease 2>&1 | tee build.log || { grep -A8 -E "What went wrong|error:|e: " build.log | head -60 | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
 
       - name: Rename APK
         run: |
