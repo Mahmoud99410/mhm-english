@@ -20,14 +20,18 @@ jobs:
           java-version: '17'
 
       - name: Use the runner's Android SDK
-        run: echo "sdk.dir=$ANDROID_HOME" > local.properties && ls $ANDROID_HOME/platforms
+        run: |
+          echo "sdk.dir=$ANDROID_HOME" > local.properties
+          echo "::notice::platforms: $(ls $ANDROID_HOME/platforms | tr '\n' ' ') build-tools: $(ls $ANDROID_HOME/build-tools | tr '\n' ' ')"
 
       - uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: '8.9'
 
       - name: Build release APK
-        run: gradle --no-daemon assembleRelease
+        run: |
+          set -o pipefail
+          gradle --no-daemon assembleRelease 2>&1 | tee build.log || { grep -E "error|Error|What went wrong|wrong:|FAILED|Exception|\.java:" build.log | head -40 | while IFS= read -r l; do echo "::error::$l"; done; exit 1; }
 
       - name: Rename APK
         run: |
